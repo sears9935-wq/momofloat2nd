@@ -51,7 +51,7 @@ type StorySettingsPageProps = {
   onExportSession: (sessionId: string) => void;
   onExportSessions: (sessionIds: string[]) => void;
   onExportAll: () => void;
-  onMergeBranches: (sessionIds: string[]) => void;
+  onMergeBranches: (sessionIds: string[], deleteSources: boolean) => void;
   onUiPrefsChange: (prefs: StoryUiPrefs) => void;
   onSettingsChange: (settings: StoryCharacterSettings) => void;
   onGlobalSettingsChange: (settings: StoryGlobalSettings) => void;
@@ -77,9 +77,11 @@ function normalizeSettings(value: StoryCharacterSettings, repo: StorySchemeRepos
     activeStatusSchemeId: repo.statusSchemes.some((item) => item.id === value.activeStatusSchemeId)
       ? value.activeStatusSchemeId
       : repo.statusSchemes[0].id,
+    statusGenerationEnabled: value.statusGenerationEnabled !== false,
     activeTheaterSchemeId: repo.theaterSchemes.some((item) => item.id === value.activeTheaterSchemeId)
       ? value.activeTheaterSchemeId
       : repo.theaterSchemes[0].id,
+    theaterGenerationEnabled: value.theaterGenerationEnabled !== false,
   };
 }
 
@@ -783,8 +785,10 @@ export function StorySettingsPage(props: StorySettingsPageProps) {
           ) : null}
         </SettingCard>
 
-        <SettingCard title="剧情尾部" hint="状态栏与小剧场方案保存在公用仓库，所有角色共享；每个角色单独选择启用哪一套">
+        <SettingCard title="剧情尾部" hint="两个开关只控制后续请求是否要求 AI 生成对应内容，不处理以前已经生成的消息">
+          <ToggleRow title="生成状态栏" detail="关闭后不再把状态栏方案的提示词发送给 AI" checked={normalized.statusGenerationEnabled !== false} onChange={(value) => patchSettings({ statusGenerationEnabled: value })} />
           <SchemeEditor label="状态栏方案" schemes={repo.statusSchemes} activeId={normalized.activeStatusSchemeId!} tag="story_status" contextNote="进入上下文" onChange={(schemes, activeStatusSchemeId) => { patchRepo({ statusSchemes: schemes }); patchSettings({ activeStatusSchemeId }); }} />
+          <ToggleRow title="生成小剧场" detail="关闭后不再把小剧场方案的提示词发送给 AI" checked={normalized.theaterGenerationEnabled !== false} onChange={(value) => patchSettings({ theaterGenerationEnabled: value })} />
           <SchemeEditor label="小剧场方案" schemes={repo.theaterSchemes} activeId={normalized.activeTheaterSchemeId!} tag="story_theater" contextNote="默认不进上下文" onChange={(schemes, activeTheaterSchemeId) => { patchRepo({ theaterSchemes: schemes }); patchSettings({ activeTheaterSchemeId }); }} />
         </SettingCard>
 

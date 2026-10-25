@@ -395,8 +395,12 @@ export type StoryCharacterSettings = {
   activeProseStyleSchemeId?: string;
   /** 当前角色启用的状态栏方案（存于公用方案仓库），仅保存选择。 */
   activeStatusSchemeId?: string;
+  /** 是否把状态栏方案的生成要求加入剧情提示词；缺省为开启。 */
+  statusGenerationEnabled?: boolean;
   /** 当前角色启用的小剧场方案（存于公用方案仓库），仅保存选择。 */
   activeTheaterSchemeId?: string;
+  /** 是否把小剧场方案的生成要求加入剧情提示词；缺省为开启。 */
+  theaterGenerationEnabled?: boolean;
   /** @deprecated 旧版按角色保存的文风方案列表；已迁移进公用方案仓库。 */
   proseStyleSchemes?: StoryProseStyleScheme[];
   /** @deprecated 旧版按角色保存的状态栏方案列表；已迁移进公用方案仓库。 */
@@ -866,7 +870,7 @@ export type MergeStoryBranchesResult = {
 };
 
 /**
- * 将允许继承记忆、或已显式写入记忆的分线按原始时间并入主线。
+ * 将用户选择的普通分线按原始时间并入主线。
  * 来源分线保留在目录中，但标记为已合并；其投影随后不再重复注入。
  */
 export function mergeStoryBranchesIntoMain(ownerType: StoryOwnerType, ownerId: string, sourceSessionIds: string[]): MergeStoryBranchesResult {
@@ -875,7 +879,7 @@ export function mergeStoryBranchesIntoMain(ownerType: StoryOwnerType, ownerId: s
   if (!main) return { mergedSessionIds: [], skippedSessionIds: sourceSessionIds, copiedMessageCount: 0 };
   const requested = new Set(sourceSessionIds);
   const sources = sessions.filter((session) => requested.has(session.id) && (session.branchId || "main") !== "main");
-  const eligible = sources.filter((session) => !session.mergedIntoMainAt && (session.inheritRecentMemory || Boolean(session.includedInMemoryAt)));
+  const eligible = sources.filter((session) => !session.independentStory && !session.mergedIntoMainAt);
   const skippedSessionIds = sources.filter((session) => !eligible.includes(session)).map((session) => session.id);
   const existing = loadStoryMessages(main.id);
   const copied = eligible.flatMap((source) => loadStoryMessages(source.id).map((message) => ({

@@ -10,7 +10,7 @@ import { ConfirmDialog } from "@/components/ui/modal";
 import { Toggle, Input } from "@/components/ui/form";
 import { Alert } from "@/components/ui/feedback";
 
-const SUPPORTED_VOICE_PROVIDERS = new Set(["Minimax", "OpenAI"]);
+const SUPPORTED_VOICE_PROVIDERS = new Set(["Minimax", "OpenAI", "FishAudio", "ElevenLabs"]);
 const MINIMAX_BASE_URL_OPTIONS = [
     { id: "cn", label: "国内版", baseUrl: "https://api.minimaxi.com/v1" },
     { id: "global", label: "海外版", baseUrl: "https://api.minimax.io/v1" },
@@ -30,6 +30,8 @@ const VOICE_PROVIDER_OPTIONS = [
     { value: "OpenAI", label: "OpenAI TTS" },
     { value: "MinimaxCN", label: "Minimax 语音国内版" },
     { value: "MinimaxGlobal", label: "Minimax 语音海外版" },
+    { value: "FishAudio", label: "Fish Audio" },
+    { value: "ElevenLabs", label: "ElevenLabs" },
 ];
 
 const DEFAULT_VOICE_CONFIGS: VoiceApiConfig[] = [
@@ -182,7 +184,9 @@ function uniqueOptions(options: VoiceOption[]): VoiceOption[] {
 }
 
 function defaultVoiceOptions(provider: string): VoiceOption[] {
-    return provider === "OpenAI" ? DEFAULT_OPENAI_VOICES : DEFAULT_MINIMAX_VOICES;
+    if (provider === "OpenAI") return DEFAULT_OPENAI_VOICES;
+    if (provider === "Minimax") return DEFAULT_MINIMAX_VOICES;
+    return [];
 }
 
 function voiceOptionsForConfig(config: VoiceApiConfig, fetchedVoices: Record<string, VoiceOption[]>): VoiceOption[] {
@@ -222,6 +226,8 @@ function makeCloneVoiceId(config: VoiceApiConfig): string {
 
 function providerSelectValue(config: VoiceApiConfig): string {
     if (config.provider === "OpenAI") return "OpenAI";
+    if (config.provider === "FishAudio") return "FishAudio";
+    if (config.provider === "ElevenLabs") return "ElevenLabs";
     return config.baseUrl === GLOBAL_MINIMAX_BASE_URL ? "MinimaxGlobal" : "MinimaxCN";
 }
 
@@ -313,6 +319,31 @@ export function VoiceSettings() {
             });
             setManualModelIds(prev => ({ ...prev, [id]: true }));
             setManualVoiceIds(prev => ({ ...prev, [id]: false }));
+            return;
+        }
+        if (providerOption === "FishAudio") {
+            updateConfig(id, {
+                provider: "FishAudio",
+                baseUrl: "https://api.fish.audio",
+                model: "s2.1-pro",
+                defaultVoice: "",
+                enableSTT: false,
+            });
+            setManualModelIds(prev => ({ ...prev, [id]: false }));
+            setManualVoiceIds(prev => ({ ...prev, [id]: true }));
+            return;
+        }
+        if (providerOption === "ElevenLabs") {
+            updateConfig(id, {
+                provider: "ElevenLabs",
+                baseUrl: "https://api.elevenlabs.io/v1",
+                model: "eleven_multilingual_v2",
+                defaultVoice: "",
+                speechSpeed: 1,
+                enableSTT: false,
+            });
+            setManualModelIds(prev => ({ ...prev, [id]: false }));
+            setManualVoiceIds(prev => ({ ...prev, [id]: true }));
             return;
         }
         const wasMinimax = current?.provider === "Minimax";
@@ -740,6 +771,48 @@ export function VoiceSettings() {
                                             </>
                                         )}
 
+                                        {(config.provider === "FishAudio" || config.provider === "ElevenLabs") && (
+                                            <>
+                                                <div className="flex flex-col gap-1">
+                                                    <label className="menu-desc ml-1">接口地址</label>
+                                                    <Input
+                                                        type="text"
+                                                        value={config.baseUrl || ""}
+                                                        readOnly
+                                                        aria-readonly="true"
+                                                    />
+                                                    <span className="menu-desc ml-1">当前使用服务商官方接口，密钥只随合成请求发送。</span>
+                                                </div>
+                                                <div className="flex flex-col gap-1">
+                                                    <label className="menu-desc ml-1">语音模型</label>
+                                                    <Input
+                                                        type="text"
+                                                        value={config.model || ""}
+                                                        onChange={(e) => updateConfig(config.id, { model: e.target.value })}
+                                                        placeholder={config.provider === "FishAudio" ? "s2.1-pro" : "eleven_multilingual_v2"}
+                                                    />
+                                                </div>
+                                                {config.provider === "ElevenLabs" && (
+                                                    <div className="flex flex-col gap-1">
+                                                        <div className="flex items-center justify-between px-1">
+                                                            <label className="menu-desc">语速</label>
+                                                            <span className="menu-label font-medium">{(config.speechSpeed ?? 1).toFixed(1)}×</span>
+                                                        </div>
+                                                        <input
+                                                            type="range"
+                                                            min={0.7}
+                                                            max={1.2}
+                                                            step={0.05}
+                                                            value={config.speechSpeed ?? 1}
+                                                            onChange={(e) => updateConfig(config.id, { speechSpeed: Number(e.target.value) })}
+                                                            className="w-full accent-black"
+                                                            aria-label="ElevenLabs 语速"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+
                                         {config.provider === "Minimax" && (
                                             <>
                                                 <div className="flex flex-col gap-1">
@@ -845,16 +918,16 @@ export function VoiceSettings() {
                                             <label className="menu-desc ml-1">默认音色 (Default Voice) 或 自定义 Voice ID</label>
                                             <div className="flex flex-col gap-2">
                                                 <div className="flex gap-2">
-                                                    {manualVoiceIds[config.id] ? (
+                                                    {(manualVoiceIds[config.id] || config.provider === "FishAudio" || config.provider === "ElevenLabs") ? (
                                                         <>
                                                             <Input
                                                                 type="text"
                                                                 value={config.defaultVoice}
                                                                 onChange={(e) => updateConfig(config.id, { defaultVoice: e.target.value })}
-                                                                placeholder={config.provider === "OpenAI" ? "alloy" : "male-qn-qingse 或克隆 Voice ID"}
+                                                                placeholder={config.provider === "OpenAI" ? "alloy" : config.provider === "FishAudio" ? "Fish Audio reference_id" : config.provider === "ElevenLabs" ? "ElevenLabs voice_id" : "male-qn-qingse 或克隆 Voice ID"}
                                                                 className="flex-1"
                                                             />
-                                                            <button
+                                                            {(config.provider === "Minimax" || config.provider === "OpenAI") && <button
                                                                 type="button"
                                                                 onClick={() => setManualVoiceIds(prev => ({ ...prev, [config.id]: false }))}
                                                                 className="ui-icon-btn"
@@ -862,7 +935,7 @@ export function VoiceSettings() {
                                                                 title="返回音色下拉选择"
                                                             >
                                                                 <List size={20} />
-                                                            </button>
+                                                            </button>}
                                                         </>
                                                     ) : (
                                                         (() => {
@@ -896,7 +969,7 @@ export function VoiceSettings() {
                                                     </button>
                                                 </div>
 
-                                                <div className="flex gap-2 mt-0.5">
+                                                {(config.provider === "Minimax" || config.provider === "OpenAI") && <div className="flex gap-2 mt-0.5">
                                                     <button
                                                         onClick={() => fetchVoices(config)}
                                                         disabled={isFetching[config.id]}
@@ -915,7 +988,7 @@ export function VoiceSettings() {
                                                             上传音频克隆音色
                                                         </button>
                                                     )}
-                                                </div>
+                                                </div>}
 
                                                 {fetchError[config.id] && (
                                                     <Alert variant="danger">

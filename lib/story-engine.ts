@@ -10,7 +10,7 @@ import {
 } from "./settings-storage";
 import type { ApiConfig, PresetConfig, RegexConfig, WorldBookConfig } from "./settings-types";
 import { assemblePromptPayload, type LLMMessage } from "./llm-prompt-assembler";
-import { previewMessagesForApi, sendLLMRequest, sendLLMStreamRequest, ChatEngineError } from "./chat-engine";
+import { previewMessagesForApi, sendLLMRequestPreferStream, sendLLMStreamRequest, ChatEngineError } from "./chat-engine";
 import { loadMemoryConfig } from "./memory-storage";
 import { retrieveCoreMemoriesForPrompt, retrieveMemoriesForPrompt } from "./memory-service";
 import { formatCoreMemories, formatLongTermMemories } from "./memory-injector";
@@ -96,8 +96,8 @@ function buildStorySettingsPrompt(
     // 新建方案 prompt 留空时不注入（避免出现“文风方案【xxx】：”这样的空行）
     effective.extraPrompt?.trim() ? `额外要求：${effective.extraPrompt.trim()}` : "",
     ...(effective.customPromptEntries || []).filter((item) => item.enabled && item.content.trim()).map((item) => `专属条目【${item.name || "未命名"}】：${item.content.trim()}`),
-    status?.prompt?.trim() || "",
-    theater?.prompt?.trim() || "",
+    effective.statusGenerationEnabled !== false ? (status?.prompt?.trim() || "") : "",
+    effective.theaterGenerationEnabled !== false ? (theater?.prompt?.trim() || "") : "",
   ].filter(Boolean).join("\n");
 }
 
@@ -278,12 +278,13 @@ export async function generateStoryCompletion(
       // 某些中转只是不支持 SSE：在尚未吐出任何正文时安全回退普通生成；
       // 已经吐过增量则不重试，避免一次操作生成两份互相不同的正文。
       if (receivedDelta || options.signal?.aborted) throw error;
-      rawOutput = await sendLLMRequest(apiConfig, preset, llmMessages, regexes, {
+      rawOutput = await sendLLMRequestPreferStream(apiConfig, preset, llmMessages, regexes, {
         characterName: character.name,
       }, { skipOutputRegex: true, includeReasoning: true, appId: "story", appTags: ["story"], signal: options?.signal });
     }
   } else {
-    rawOutput = await sendLLMRequest(apiConfig, preset, llmMessages, regexes, {
+    // 关闭逐字显示时仍优先使用流式传输，在后台收齐全文后一次性展示，避免 iOS 长请求超时。
+    rawOutput = await sendLLMRequestPreferStream(apiConfig, preset, llmMessages, regexes, {
       characterName: character.name,
     }, { skipOutputRegex: true, includeReasoning: true, appId: "story", appTags: ["story"], signal: options?.signal });
   }
